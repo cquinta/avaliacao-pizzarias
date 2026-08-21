@@ -5,11 +5,58 @@ services:
     container_name: avalicoes-db
     environment:
       POSTGRES_PASSWORD_FILE: /run/secrets/db_password
-
-
-
-
-
+    ports:
+      - "5432:5432"
+    
+    secrets:
+      - db_password
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+  api:
+    build: ./api
+    image: apiimage
+    environment:
+      DB_HOST: db
+      DB_PASSWORD_FILE: /run/secrets/db_password
+    healthcheck:
+      test: ["CMD-SHELL", "curl localhost:8000/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    
+    depends_on:
+      db:
+        condition: service_healthy
+    deploy:
+      replicas: 2
+ 
+    secrets: 
+      - db_password
+  frontend: 
+    build: ./frontend
+    image: frontendimage
+    #container_name: pizzarias-frontend
+    environment:
+      API_URL: http://nginx:80/api
+      UPDATED: yes
+    
+    deploy:
+      replicas: 3
+    depends_on:
+      api: 
+        condition: service_healthy
+  nginx: 
+    build: ./nginx
+    container_name: pizzarias-nginx
+    ports: 
+      - "80:80"
+    depends_on:
+      - api
+      - frontend
+    
 secrets:
   db_password:
     file: ./db/password.txt
