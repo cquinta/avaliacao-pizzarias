@@ -1,0 +1,16 @@
+services:
+  db:
+    build: ./db
+    image: dbimage
+    container_name: avalicoes-db
+    environment:
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_password
+
+
+
+
+
+secrets:
+  db_password:
+    file: ./db/password.txt
+  
