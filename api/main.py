@@ -5,7 +5,7 @@ import psycopg2
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
-API_VERSION = "1.0.0"
+API_VERSION = "1.0.5"
 
 app = FastAPI(title="Avaliação de Pizzarias", version=API_VERSION)
 
@@ -102,5 +102,5 @@ def healthcheck_db():
             cur.execute("SELECT 1")
         conn.close()
         return {"status": "healthy", "database": "connected"}
-    except Exception as e:
-        raise HTTPException(status_code=503, detail=f"Database unavailable: {str(e)}")
+    except (psycopg2.OperationalError, psycopg2.InterfaceError) as e:
+        raise HTTPException(status_code=503, detail=f"Database unavailable: {e!s}")
