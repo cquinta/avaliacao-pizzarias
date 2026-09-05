@@ -40,7 +40,7 @@ services:
     image: carlosquintanilha/frontendimage
     #container_name: pizzarias-frontend
     environment:
-      API_URL: http://nginx:80/api
+      API_URL: http://api:8000
       UPDATED: yes
     
     deploy:
