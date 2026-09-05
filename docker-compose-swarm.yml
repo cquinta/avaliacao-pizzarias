@@ -1,13 +1,12 @@
+version: '3.8'
+
 services:
   db:
-    build: ./db
-    image: carlosquintanilha/dbimage
-    container_name: avalicoes-db
+    image: carlosquintanilha/dbimage:latest
     environment:
       POSTGRES_PASSWORD_FILE: /run/secrets/db_password
     ports:
       - "5432:5432"
-    
     secrets:
       - db_password
     healthcheck:
@@ -15,9 +14,14 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager # Opcional: útil se o volume dos dados do banco estiver preso a um nó específico
+
   api:
-    build: ./api
-    image: carlosquintanilha/apiimage
+    image: carlosquintanilha/apiimage:latest
     environment:
       DB_HOST: db
       DB_PASSWORD_FILE: /run/secrets/db_password
@@ -26,39 +30,26 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
-    
-    depends_on:
-      db:
-        condition: service_healthy
     deploy:
       replicas: 2
- 
     secrets: 
       - db_password
+
   frontend: 
-    build: ./frontend
-    image: carlosquintanilha/frontendimage
-    #container_name: pizzarias-frontend
+    image: carlosquintanilha/frontendimage:latest
     environment:
       API_URL: http://nginx:80/api
       UPDATED: yes
-    
     deploy:
       replicas: 3
-    depends_on:
-      api: 
-        condition: service_healthy
+
   nginx: 
-    build: ./nginx
-    image: carlosquintanilha/nginx
-    container_name: pizzarias-nginx
+    image: carlosquintanilha/nginximage:latest
     ports: 
       - "80:80"
-    depends_on:
-      - api
-      - frontend
+    deploy:
+      replicas: 1
     
 secrets:
   db_password:
     file: ./db/password.txt
-  
