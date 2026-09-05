@@ -38,8 +38,7 @@ services:
   frontend: 
     image: carlosquintanilha/frontendimage:latest
     environment:
-      API_URL: http://nginx:80/api
-      UPDATED: yes
+      API_URL: http://api:8000
     deploy:
       replicas: 3
 
