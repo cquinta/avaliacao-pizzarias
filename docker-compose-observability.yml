@@ -3,6 +3,7 @@ version: '3.8'
 services:
   prometheus:
     image: prom/prometheus:latest
+    user: root
     volumes:
       - prometheus_data:/prometheus
       - /var/run/docker.sock:/var/run/docker.sock:ro
@@ -32,7 +33,7 @@ services:
     deploy:
       mode: global
       labels:
-        prometheus_job: cadvisor
+        prometheus.job: cadvisor
 
 volumes:
   prometheus_data:
