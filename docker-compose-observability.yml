@@ -38,4 +38,4 @@ volumes:
 
 configs:
   prometheus_config:
-    file: ./observability-stack/prometheus.yml
+    file: ./prometheus.yml
