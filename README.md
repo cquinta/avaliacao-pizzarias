@@ -1,10 +1,8 @@
 # 🍕 Avaliação de Pizzarias
 
-Sistema web para avaliação de pizzarias, construído com uma arquitetura de microsserviços containerizados usando Docker Compose.
+Sistema web para avaliação de pizzarias, construído com uma arquitetura de microsserviços containerizados usando Docker Compose e Docker Swarm.
 
 ## Arquitetura
-
-O projeto é composto por 4 serviços que se comunicam em uma rede Docker interna:
 
 ```
 ┌────────────────────────────────────────────────────┐
@@ -30,12 +28,12 @@ O projeto é composto por 4 serviços que se comunicam em uma rede Docker intern
         └─────────────┘
 ```
 
-| Serviço    | Tecnologia          | Porta Interna | Réplicas |
-|------------|---------------------|:-------------:|:--------:|
-| **db**     | PostgreSQL 16       | 5432          | 1        |
-| **api**    | FastAPI + Uvicorn   | 8000          | 2        |
+| Serviço      | Tecnologia        | Porta Interna | Réplicas |
+|--------------|-------------------|:-------------:|:--------:|
+| **db**       | PostgreSQL 16     | 5432          | 1        |
+| **api**      | FastAPI + Uvicorn | 8000          | 2        |
 | **frontend** | Streamlit         | 8501          | 3        |
-| **nginx**  | Nginx Alpine        | 80            | 1        |
+| **nginx**    | Nginx Alpine      | 80            | 1        |
 
 ## Funcionalidades
 
@@ -52,6 +50,10 @@ O projeto é composto por 4 serviços que se comunicam em uma rede Docker intern
 
 ## Como executar
 
+### Localmente (Docker Compose)
+
+> **Atenção (WSL):** O projeto deve estar dentro do filesystem Linux do WSL (`/home/user/...`), não em `/mnt/c/...`. Bind mounts de arquivos no filesystem do Windows causam erros com Docker Secrets.
+
 1. Clone o repositório:
 
 ```bash
@@ -65,7 +67,7 @@ cd avaliacao-pizzarias
 docker compose up --build -d
 ```
 
-3. Acesse a aplicação no navegador:
+3. Acesse a aplicação:
 
 ```
 http://localhost
@@ -77,40 +79,95 @@ Para encerrar:
 docker compose down
 ```
 
+### Docker Swarm (EC2 / produção)
+
+#### Pré-requisitos no cluster
+
+1. Inicialize o Swarm no nó manager:
+
+```bash
+docker swarm init
+```
+
+2. Adicione os workers ao cluster:
+
+```bash
+docker swarm join --token <token> <ip-manager>:2377
+```
+
+3. Configure o Docker daemon em **cada nó** para expor métricas (necessário para observabilidade):
+
+```bash
+echo '{"metrics-addr": "0.0.0.0:9323", "experimental": true}' | sudo tee /etc/docker/daemon.json
+sudo systemctl restart docker
+```
+
+4. Libere as seguintes portas no Security Group (regra **self-referencing** entre instâncias do cluster):
+
+| Porta | Protocolo | Uso |
+|-------|-----------|-----|
+| 2377  | TCP | Gerenciamento do Swarm |
+| 7946  | TCP/UDP | Comunicação entre nós |
+| 4789  | UDP | Overlay network (VXLAN) |
+| 9323  | TCP | Métricas do Docker daemon |
+| 8080  | TCP | Métricas do cAdvisor |
+| 9090  | TCP | Prometheus (acesso externo) |
+
+#### Deploy da aplicação
+
+```bash
+docker stack deploy -c docker-compose-swarm.yml demo
+```
+
+#### Deploy da stack de observabilidade
+
+```bash
+cd observability-stack
+docker stack deploy -c docker-compose-observability.yml obs
+```
+
+Acesse o Prometheus em `http://<ip-manager>:9090`.
+
 ## Estrutura do Projeto
 
 ```
 avaliacao-pizzarias/
 ├── api/
 │   ├── Dockerfile
-│   ├── main.py              # API FastAPI com rotas REST
+│   ├── main.py                        # API FastAPI com rotas REST
 │   └── requirements.txt
 ├── db/
 │   ├── Dockerfile
-│   ├── init.sql             # Script de criação de tabelas e dados iniciais
-│   └── password.txt         # Senha do banco (Docker Secret)
+│   ├── init.sql                       # Script de criação de tabelas e dados iniciais
+│   └── password.txt                   # Senha do banco (Docker Secret)
+├── docs/
+│   └── orquestracao-containers.md     # Documentação detalhada da orquestração
 ├── frontend/
 │   ├── Dockerfile
-│   ├── app.py               # Interface Streamlit
+│   ├── app.py                         # Interface Streamlit
 │   └── requirements.txt
 ├── nginx/
 │   ├── Dockerfile
-│   └── nginx.conf           # Configuração de reverse proxy
-├── docker-compose.yml
+│   └── nginx.conf                     # Configuração de reverse proxy
+├── observability-stack/
+│   ├── prometheus.yml                 # Configuração do Prometheus com Swarm SD
+│   └── docker-compose-observability.yml
+├── docker-compose.yml                 # Deploy local
+├── docker-compose-swarm.yml           # Deploy em Docker Swarm
 ├── LICENSE
 └── README.md
 ```
 
 ## Endpoints da API
 
-| Método | Rota           | Descrição                          |
-|--------|----------------|------------------------------------|
-| GET    | /avaliacoes    | Lista todas as avaliações          |
-| POST   | /avaliacoes    | Cria uma nova avaliação            |
-| GET    | /hostname      | Retorna o hostname do container    |
-| GET    | /version       | Retorna a versão da API            |
-| GET    | /health        | Healthcheck da API                 |
-| GET    | /health/db     | Healthcheck da conexão com o banco |
+| Método | Rota        | Descrição                          |
+|--------|-------------|------------------------------------|
+| GET    | /avaliacoes | Lista todas as avaliações          |
+| POST   | /avaliacoes | Cria uma nova avaliação            |
+| GET    | /hostname   | Retorna o hostname do container    |
+| GET    | /version    | Retorna a versão da API            |
+| GET    | /health     | Healthcheck da API                 |
+| GET    | /health/db  | Healthcheck da conexão com o banco |
 
 ### Exemplo de payload para criar avaliação
 
@@ -121,6 +178,19 @@ avaliacao-pizzarias/
 }
 ```
 
+## Observabilidade
+
+A stack de observabilidade é composta por:
+
+| Serviço        | Tecnologia  | Porta | Réplicas |
+|----------------|-------------|:-----:|:--------:|
+| **prometheus** | Prometheus  | 9090  | 1 (manager) |
+| **cadvisor**   | cAdvisor    | 8080  | global (1 por nó) |
+
+O Prometheus usa **Docker Swarm Service Discovery** para descobrir automaticamente os nós e serviços do cluster. O cAdvisor coleta métricas de containers em cada nó.
+
+> O Prometheus roda exclusivamente no nó manager e acessa o Docker socket para o service discovery.
+
 ## Tecnologias Utilizadas
 
 - **Python 3.12** — linguagem principal
@@ -129,11 +199,14 @@ avaliacao-pizzarias/
 - **Streamlit 1.36** — interface web interativa
 - **PostgreSQL 16** — banco de dados relacional
 - **Nginx** — reverse proxy e load balancer
-- **Docker / Docker Compose** — containerização e orquestração
+- **Docker / Docker Compose** — containerização e orquestração local
+- **Docker Swarm** — orquestração em cluster
+- **Prometheus** — coleta e armazenamento de métricas
+- **cAdvisor** — métricas de containers
 
 ## Segurança
 
-A senha do banco de dados é gerenciada via **Docker Secrets** (arquivo `db/password.txt`), evitando expor credenciais em variáveis de ambiente diretamente no `docker-compose.yml`.
+A senha do banco de dados é gerenciada via **Docker Secrets** (arquivo `db/password.txt`), evitando expor credenciais em variáveis de ambiente diretamente nos arquivos de compose.
 
 ## Licença
 
