@@ -48,11 +48,18 @@ services:
     environment:
       - GF_SECURITY_ADMIN_USER=admin
       - GF_SECURITY_ADMIN_PASSWORD=admin
-      - GF_AUTH_BASIC_ENABLED=true
-      - GF_SECURITY_DISABLE_INITIAL_ORG_SETUP=false
       - GF_USERS_ALLOW_SIGN_UP=false
       - GF_AUTH_DISABLE_LOGIN_FORM=false
-      - GF_SECURITY_ADMIN_PASSWORD__FORCE_CHANGE=false
+      - GF_SECURITY_DISABLE_GRAVATAR=true
+      - GF_SECURITY_COOKIE_SECURE=false
+      - GF_USERS_DEFAULT_THEME=dark
+      - GF_SECURITY_ADMIN_EMAIL=admin@localhost
+      - GF_SECURITY_DISABLE_INITIAL_ORG_SETUP=false
+      - GF_FEATURE_TOGGLES_ENABLE=
+      - GF_SECURITY_ANGULAR_SUPPORT_ENABLED=false
+      - GF_AUTH_ANONYMOUS_ENABLED=false
+      - GF_SECURITY_DISABLE_BRUTE_FORCE_LOGIN_PROTECTION=false
+      - GF_SECURITY_FORCE_CHANGE_PASSWORD=false
     configs:
       - source: grafana_datasource
         target: /etc/grafana/provisioning/datasources/prometheus.yml
