@@ -44,7 +44,7 @@ services:
       - "3000:3000"
     environment:
       - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=admin    - "9100:9100"
+      - GF_SECURITY_ADMIN_PASSWORD=admin
     deploy:
       mode: replicated
       replicas: 1
