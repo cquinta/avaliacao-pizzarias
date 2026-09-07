@@ -3,9 +3,10 @@ version: '3.8'
 services:
   prometheus:
     image: prom/prometheus:latest
-    volumes:
-      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - prometheus_data:/prometheus
+    configs:
+      source: prometheus_config
+      target: /etc/prometheus/prometheus.yml
+    
     ports:
       - "9090:9090"
     deploy:
@@ -13,10 +14,6 @@ services:
       placement:
         constraints:
           - node.role == manager
-    configs:
-      - source: prometheus_config
-        target: /etc/prometheus/prometheus.yml
-
   cadvisor:
     image: gcr.io/cadvisor/cadvisor:latest
     volumes:
@@ -25,6 +22,7 @@ services:
       - /var/run:/var/run
       - /sys:/sys:ro
       - /var/lib/docker:/var/lib/docker:ro
+    privileged: true
     ports:
       - target: 8080
         published: 8080
@@ -33,10 +31,26 @@ services:
       mode: global
       labels:
         prometheus_job: cadvisor
-
-volumes:
-  prometheus_data:
+  node-exporter:
+    image: prom/node-exporter:latest
+    privileged: true
+    deploy:
+      mode: global
+    ports:
+  
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin    - "9100:9100"
+    deploy:
+      mode: replicated
+      replicas: 1
+      placement:
+        constraints: [node.role == manager]
 
 configs:
   prometheus_config:
-    file: ./observability-stack/prometheus.yml
+    file: ./prometheus.yml

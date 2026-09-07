@@ -1,28 +1,25 @@
-# Orquestração de Containers com Docker Compose
+# Orquestração de Containers
 
-Este documento explica em detalhes como funciona a orquestração de containers no projeto **Avaliação de Pizzarias**, abordando cada conceito aplicado no `docker-compose.yml`.
+Este documento explica como funciona a orquestração de containers no projeto **Avaliação de Pizzarias**, cobrindo tanto o ambiente local com Docker Compose quanto o cluster com Docker Swarm.
 
 ---
 
 ## 1. Visão Geral
 
-O Docker Compose é a ferramenta utilizada para definir e gerenciar os múltiplos containers da aplicação como uma unidade. Com um único comando (`docker compose up`), toda a infraestrutura é provisionada: banco de dados, API, frontend e reverse proxy.
+O projeto suporta dois modos de execução:
 
-O arquivo `docker-compose.yml` na raiz do projeto é o manifesto que descreve:
-
-- Quais serviços existem
-- Como cada um é construído (imagem)
-- As dependências entre eles
-- Variáveis de ambiente e secrets
-- Healthchecks
-- Número de réplicas
-- Mapeamento de portas
+| Modo | Arquivo | Uso |
+|------|---------|-----|
+| Local | `docker-compose.yml` | Desenvolvimento e testes |
+| Cluster | `docker-compose-swarm.yml` | Produção em Docker Swarm |
 
 ---
 
-## 2. Serviços Definidos
+## 2. Docker Compose (local)
 
-### 2.1. db (PostgreSQL)
+### 2.1. Serviços
+
+#### db (PostgreSQL)
 
 ```yaml
 db:
@@ -42,15 +39,11 @@ db:
     retries: 5
 ```
 
-**Papel:** Banco de dados relacional que armazena todas as avaliações.
+- Banco de dados relacional que armazena todas as avaliações
+- A senha é montada via Docker Secrets em `/run/secrets/db_password`
+- Healthcheck verifica se o PostgreSQL está pronto com `pg_isready`
 
-- **Build:** Usa o `Dockerfile` em `./db`, que parte de `postgres:16-alpine`, define o banco padrão como `pizzarias` e copia o script `init.sql` para inicialização automática.
-- **container_name:** Nome fixo `avalicoes-db` — como há apenas uma instância do banco, faz sentido nomeá-lo explicitamente.
-- **Porta exposta:** `5432:5432` — permite acesso externo ao banco para depuração ou ferramentas como DBeaver/pgAdmin.
-- **Secret:** A senha é montada via Docker Secrets em `/run/secrets/db_password`, evitando exposição direta.
-- **Healthcheck:** Verifica se o PostgreSQL está pronto para aceitar conexões usando `pg_isready`.
-
-### 2.2. api (FastAPI)
+#### api (FastAPI)
 
 ```yaml
 api:
@@ -59,11 +52,6 @@ api:
   environment:
     DB_HOST: db
     DB_PASSWORD_FILE: /run/secrets/db_password
-  healthcheck:
-    test: ["CMD-SHELL", "curl localhost:8000/health"]
-    interval: 5s
-    timeout: 5s
-    retries: 5
   depends_on:
     db:
       condition: service_healthy
@@ -73,22 +61,18 @@ api:
     - db_password
 ```
 
-**Papel:** Camada de API REST que fornece os endpoints para criação e consulta de avaliações.
+- API REST com 2 réplicas para distribuição de carga
+- Só inicia após o banco estar saudável (`service_healthy`)
+- Conecta ao banco pelo nome DNS interno `db`
 
-- **Build:** Usa o `Dockerfile` em `./api`, partindo de `python:3.12-slim`.
-- **Variáveis de ambiente:** `DB_HOST=db` faz a API resolver o nome DNS interno do container do banco. A senha é lida do arquivo de secret.
-- **depends_on com condition:** A API só inicia **depois** que o banco estiver saudável (`service_healthy`). Isso garante que não haverá erros de conexão na inicialização.
-- **Replicas: 2:** O Docker Compose cria 2 instâncias da API para distribuição de carga. O Nginx faz o balanceamento entre elas.
-- **Healthcheck:** Verifica a rota `/health` via curl. Se falhar após 5 tentativas, o container é marcado como unhealthy.
-
-### 2.3. frontend (Streamlit)
+#### frontend (Streamlit)
 
 ```yaml
 frontend:
   build: ./frontend
   image: frontendimage
   environment:
-    API_URL: http://nginx:80/api
+    API_URL: http://api:8000
   deploy:
     replicas: 3
   depends_on:
@@ -96,14 +80,11 @@ frontend:
       condition: service_healthy
 ```
 
-**Papel:** Interface web que permite ao usuário cadastrar e visualizar avaliações.
+- Interface web com 3 réplicas
+- Comunica-se diretamente com a API pelo nome DNS interno `api:8000`
+- Só inicia após a API estar saudável
 
-- **Build:** Usa o `Dockerfile` em `./frontend`, partindo de `python:3.12-slim`.
-- **API_URL:** Aponta para o Nginx (`http://nginx:80/api`), que roteia as requisições para as instâncias da API. Assim, o frontend não se comunica diretamente com a API — passa pelo proxy.
-- **Replicas: 3:** São criadas 3 instâncias do frontend para alta disponibilidade.
-- **depends_on:** Só inicia quando a API estiver saudável.
-
-### 2.4. nginx (Reverse Proxy)
+#### nginx (Reverse Proxy)
 
 ```yaml
 nginx:
@@ -116,55 +97,16 @@ nginx:
     - frontend
 ```
 
-**Papel:** Ponto de entrada único da aplicação. Recebe todas as requisições na porta 80 e as distribui.
+- Ponto de entrada único na porta 80
+- Roteia `/api/*` para as réplicas da API e `/*` para as réplicas do frontend
 
-- **Build:** Usa o `Dockerfile` em `./nginx`, partindo de `nginx:alpine`.
-- **Porta exposta:** `80:80` — única porta acessível externamente para o usuário final.
-- **depends_on:** Aguarda que API e frontend estejam criados (sem condition de health aqui, apenas ordem de início).
+### 2.2. Configuração do Nginx
 
----
-
-## 3. Conceitos de Orquestração Aplicados
-
-### 3.1. Ordem de Inicialização (depends_on)
-
-O Docker Compose permite definir dependências entre serviços. Neste projeto, a cadeia é:
-
-```
-db → api → frontend → nginx
-```
-
-Com a opção `condition: service_healthy`, o Compose não apenas espera o container iniciar, mas espera ele **ficar saudável** (healthcheck passando). Isso resolve o problema clássico de a API tentar se conectar ao banco antes dele estar pronto.
-
-### 3.2. Healthchecks
-
-Cada serviço crítico possui um healthcheck:
-
-| Serviço | Comando de Verificação | Intervalo | Tentativas |
-|---------|------------------------|:---------:|:----------:|
-| db      | `pg_isready -U postgres` | 5s | 5 |
-| api     | `curl localhost:8000/health` | 5s | 5 |
-
-O healthcheck permite que o Docker:
-1. Monitore o estado real do serviço (não apenas se o processo está rodando)
-2. Condicione a inicialização de serviços dependentes
-3. Reinicie containers unhealthy (quando combinado com restart policies)
-
-### 3.3. Réplicas e Load Balancing
-
-```yaml
-deploy:
-  replicas: 2  # api
-  replicas: 3  # frontend
-```
-
-O `deploy.replicas` cria múltiplas instâncias de um serviço. Quando há réplicas:
-- O `container_name` não pode ser usado (cada réplica precisa de um nome único gerado automaticamente)
-- O Nginx faz o balanceamento de carga entre as réplicas usando DNS round-robin do Docker
-
-O Nginx está configurado com `upstream` blocks:
+O `nginx.conf` usa o resolver interno do Docker para evitar problemas de DNS:
 
 ```nginx
+resolver 127.0.0.11 valid=10s;
+
 upstream api_backend {
     server api:8000;
 }
@@ -174,19 +116,23 @@ upstream frontend_backend {
 }
 ```
 
-Quando o Nginx resolve `api:8000`, o DNS interno do Docker retorna os IPs de todas as réplicas, distribuindo as requisições entre elas.
+> O `resolver 127.0.0.11` é necessário especialmente em ambientes EC2, onde o sufixo DNS `.ec2.internal` interfere na resolução dos nomes de serviços do Swarm.
 
-### 3.4. Rede Interna (Service Discovery)
+### 2.3. Conceitos aplicados
 
-O Docker Compose cria automaticamente uma rede bridge para todos os serviços do projeto. Dentro dessa rede:
+#### Ordem de inicialização
 
-- Cada serviço pode ser acessado pelo seu **nome** (ex: `db`, `api`, `frontend`, `nginx`)
-- A resolução DNS é feita internamente pelo Docker
-- Não é necessário configurar IPs — a comunicação é por nome de serviço
+```
+db → api → frontend → nginx
+```
 
-Exemplo: a API se conecta ao banco usando `DB_HOST=db`, e o Docker resolve isso para o IP interno do container PostgreSQL.
+Com `condition: service_healthy`, o Compose aguarda o healthcheck passar antes de iniciar o serviço dependente.
 
-### 3.5. Docker Secrets
+#### Réplicas e Load Balancing
+
+O Nginx resolve `api:8000` e `frontend:8501` via DNS round-robin do Docker, distribuindo requisições entre as réplicas automaticamente.
+
+#### Docker Secrets
 
 ```yaml
 secrets:
@@ -194,48 +140,199 @@ secrets:
     file: ./db/password.txt
 ```
 
-Docker Secrets é o mecanismo seguro para passar informações sensíveis aos containers:
+A senha é montada em `/run/secrets/db_password` dentro dos containers, sem exposição via variáveis de ambiente.
 
-- O conteúdo de `./db/password.txt` é montado em `/run/secrets/db_password` dentro dos containers que declaram acesso
-- O arquivo fica disponível apenas em memória (tmpfs), não no filesystem do container
-- Tanto o banco quanto a API leem a senha deste arquivo, usando a variável `*_PASSWORD_FILE`
-
-Isso é mais seguro do que usar variáveis de ambiente diretamente, pois:
-- Variáveis de ambiente podem ser expostas via `docker inspect`
-- Secrets são isolados e acessíveis apenas pelos serviços autorizados
-
-### 3.6. Build de Imagens
-
-Cada serviço tem seu próprio `Dockerfile` e a tag da imagem é definida com `image:`:
-
-```yaml
-build: ./api
-image: apiimage
-```
-
-O Compose constrói a imagem a partir do diretório indicado e a rotula com o nome especificado. Isso permite:
-- Reutilizar imagens em outros ambientes
-- Identificar facilmente as imagens no registry local (`docker images`)
-
-### 3.7. Mapeamento de Portas
-
-Apenas dois serviços expõem portas para o host:
-
-| Serviço | Mapeamento | Motivo |
-|---------|:----------:|--------|
-| nginx   | 80:80      | Ponto de entrada para usuários |
-| db      | 5432:5432  | Acesso para ferramentas de administração |
-
-Os demais serviços (api, frontend) comunicam-se apenas pela rede interna, sem exposição direta ao host.
+> **Atenção (WSL):** O arquivo `db/password.txt` deve estar dentro do filesystem Linux do WSL (`/home/user/...`). Bind mounts de arquivos no filesystem do Windows (`/mnt/c/...`) causam erros ao montar secrets.
 
 ---
 
-## 4. Fluxo de uma Requisição
+## 3. Docker Swarm (cluster)
 
-### Requisição do Frontend (navegador)
+### 3.1. Diferenças em relação ao Compose local
+
+| Aspecto | Compose local | Swarm |
+|---------|--------------|-------|
+| Imagens | Build local | Imagens pré-publicadas no registry |
+| Redes | bridge | overlay |
+| Secrets | Arquivo local | Arquivo local (referenciado no deploy) |
+| Placement | N/A | Constraints por role/nó |
+| `API_URL` | `http://api:8000` | `http://api:8000` |
+
+### 3.2. Configuração do cluster EC2
+
+#### Portas necessárias no Security Group (self-referencing)
+
+| Porta | Protocolo | Uso |
+|-------|-----------|-----|
+| 2377  | TCP | Gerenciamento do Swarm |
+| 7946  | TCP/UDP | Comunicação entre nós |
+| 4789  | UDP | Overlay network (VXLAN) |
+| 9323  | TCP | Métricas do Docker daemon |
+| 8080  | TCP | Métricas do cAdvisor |
+
+> A regra deve ter como origem o próprio Security Group (self-referencing), não um CIDR externo.
+
+#### Métricas do Docker daemon
+
+Em cada nó do cluster, adicione ao `/etc/docker/daemon.json`:
+
+```json
+{
+  "metrics-addr": "0.0.0.0:9323",
+  "experimental": true
+}
+```
+
+```bash
+sudo systemctl restart docker
+```
+
+### 3.3. DNS interno no Swarm em EC2
+
+Em ambientes EC2, o sufixo DNS `.ec2.internal` interfere na resolução de nomes de serviços Swarm. O Nginx precisa do `resolver 127.0.0.11` no `nginx.conf` para forçar o uso do DNS interno do Docker.
+
+Sem essa configuração, o Nginx falha com:
+```
+host not found in upstream "api:8000"
+```
+
+### 3.4. Redes overlay e docker_gwbridge
+
+Containers em redes overlay não conseguem alcançar diretamente IPs do host (`10.0.0.x`). Para serviços que precisam acessar portas do host (como o Prometheus acessando a porta 9323 do Docker daemon), o endereço correto é o gateway do `docker_gwbridge`:
 
 ```
-Navegador (localhost:80)
+172.18.0.1  ← gateway padrão do docker_gwbridge
+```
+
+---
+
+## 4. Stack de Observabilidade
+
+A stack de observabilidade é definida em `observability-stack/docker-compose-observability.yml` e deployada separadamente.
+
+### 4.1. Serviços
+
+#### prometheus
+
+```yaml
+prometheus:
+  image: prom/prometheus:latest
+  user: root
+  volumes:
+    - prometheus_data:/prometheus
+    - /var/run/docker.sock:/var/run/docker.sock:ro
+  ports:
+    - "9090:9090"
+  configs:
+    - source: prometheus_config
+      target: /etc/prometheus/prometheus.yml
+  deploy:
+    replicas: 1
+    placement:
+      constraints:
+        - node.role == manager
+```
+
+- Roda exclusivamente no nó manager (acesso ao Docker socket para service discovery)
+- Monta o Docker socket para descobrir nós e serviços via Swarm SD
+- Roda como `root` para ter permissão de acesso ao socket (grupo `docker`)
+- Configuração injetada via Docker Config
+
+#### cadvisor
+
+```yaml
+cadvisor:
+  image: gcr.io/cadvisor/cadvisor:latest
+  volumes:
+    - /var/run/docker.sock:/var/run/docker.sock:ro
+    - /:/rootfs:ro
+    - /var/run:/var/run
+    - /sys:/sys:ro
+    - /var/lib/docker:/var/lib/docker:ro
+  ports:
+    - target: 8080
+      published: 8080
+      mode: host
+  deploy:
+    mode: global
+    labels:
+      prometheus.job: cadvisor
+```
+
+- Roda em modo `global` — uma instância por nó do cluster
+- Porta publicada em modo `host` para que o Prometheus acesse pelo IP do nó
+- Label `prometheus.job: cadvisor` usado pelo Prometheus para filtrar e nomear o job
+
+### 4.2. Configuração do Prometheus (prometheus.yml)
+
+```yaml
+scrape_configs:
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  - job_name: 'docker'
+    dockerswarm_sd_configs:
+      - host: unix:///var/run/docker.sock
+        role: nodes
+    relabel_configs:
+      - source_labels: [__meta_dockerswarm_node_address]
+        target_label: __address__
+        replacement: 172.18.0.1:9323
+      - source_labels: [__meta_dockerswarm_node_hostname]
+        target_label: instance
+
+  - job_name: 'dockerswarm'
+    dockerswarm_sd_configs:
+      - host: unix:///var/run/docker.sock
+        role: tasks
+    relabel_configs:
+      - source_labels: [__meta_dockerswarm_node_address, __meta_dockerswarm_task_port_publish_mode]
+        regex: (.+);host
+        target_label: __address__
+        replacement: $1:8080
+      - source_labels: [__meta_dockerswarm_node_hostname]
+        target_label: instance
+      - source_labels: [__meta_dockerswarm_task_desired_state]
+        regex: running
+        action: keep
+      - source_labels: [__meta_dockerswarm_service_label_prometheus_job]
+        regex: .+
+        action: keep
+      - source_labels: [__meta_dockerswarm_service_label_prometheus_job]
+        target_label: job
+```
+
+**Job `docker` (métricas do daemon):**
+- Descobre todos os nós via Swarm SD
+- Substitui o endereço por `172.18.0.1:9323` — o gateway do `docker_gwbridge` que permite ao container Prometheus alcançar a porta 9323 do host
+
+**Job `dockerswarm` (métricas de containers via cAdvisor):**
+- Descobre todas as tasks em execução
+- Para tasks com `port_publish_mode=host`, substitui o endereço pelo IP do nó host na porta 8080
+- Filtra apenas tasks com label `prometheus.job` definido
+- Usa o valor do label como nome do job
+
+### 4.3. Deploy
+
+```bash
+cd observability-stack
+docker stack deploy -c docker-compose-observability.yml obs
+```
+
+Para atualizar a configuração do Prometheus:
+
+```bash
+docker config rm obs_prometheus_config
+docker stack deploy -c docker-compose-observability.yml obs
+```
+
+---
+
+## 5. Fluxo de uma Requisição
+
+```
+Navegador (porta 80)
     │
     ▼
 Nginx (location /)
@@ -243,83 +340,32 @@ Nginx (location /)
     ▼ proxy_pass → frontend:8501
 Frontend (Streamlit)
     │
-    ▼ requests.post → nginx:80/api/avaliacoes
-Nginx (location /api/)
-    │
-    ▼ proxy_pass → api:8000
+    ▼ requests → http://api:8000/avaliacoes
 API (FastAPI)
     │
-    ▼ psycopg2.connect → db:5432
+    ▼ psycopg2 → db:5432
 PostgreSQL
 ```
 
-1. O navegador acessa `http://localhost` (porta 80)
-2. O Nginx roteia para uma das réplicas do frontend
-3. O Streamlit renderiza a página e, ao enviar dados, faz chamadas HTTP para `http://nginx:80/api`
-4. O Nginx intercepta requisições com prefixo `/api/` e encaminha para a API (removendo o prefixo)
-5. A API processa a requisição e se comunica com o PostgreSQL
-
 ---
 
-## 5. Comandos Úteis
+## 6. Comandos Úteis
 
 ```bash
-# Subir todos os serviços com build
+# Local
 docker compose up --build -d
-
-# Ver logs em tempo real
 docker compose logs -f
-
-# Ver logs de um serviço específico
-docker compose logs -f api
-
-# Verificar o estado dos containers
 docker compose ps
-
-# Escalar um serviço manualmente
-docker compose up -d --scale api=4
-
-# Parar e remover todos os containers
-docker compose down
-
-# Parar e remover inclusive os volumes (apaga dados do banco)
 docker compose down -v
 
-# Rebuild de um serviço específico
-docker compose build api
-docker compose up -d api
+# Swarm — aplicação
+docker stack deploy -c docker-compose-swarm.yml demo
+docker service ls
+docker service logs demo_api --tail 50
+docker stack rm demo
+
+# Swarm — observabilidade
+docker stack deploy -c observability-stack/docker-compose-observability.yml obs
+docker service logs obs_prometheus --tail 30
+docker stack rm obs
 ```
-
----
-
-## 6. Diagrama de Rede
-
-```
-┌─────────────────────────────── Docker Network (bridge) ──────────────────────────────┐
-│                                                                                       │
-│  ┌──────────┐     ┌──────────┐  ┌──────────┐     ┌───────────┐  ┌───────────┐       │
-│  │  nginx   │────▶│  api-1   │  │  api-2   │     │frontend-1 │  │frontend-2 │ ...   │
-│  │  :80     │────▶│  :8000   │  │  :8000   │     │  :8501    │  │  :8501    │       │
-│  └──────────┘     └────┬─────┘  └────┬─────┘     └───────────┘  └───────────┘       │
-│       ▲                 │             │                                                │
-│       │                 ▼             ▼                                                │
-│   Host:80          ┌──────────────────────┐                                           │
-│                    │     db (postgres)     │                                           │
-│                    │        :5432          │◀── Host:5432                              │
-│                    └──────────────────────┘                                           │
-└───────────────────────────────────────────────────────────────────────────────────────┘
-```
-
----
-
-## 7. Resumo
-
-| Conceito | Aplicação no Projeto |
-|----------|---------------------|
-| Multi-container | 4 serviços independentes orquestrados juntos |
-| depends_on + healthcheck | Garante ordem correta de inicialização |
-| Réplicas | API (2x) e Frontend (3x) para alta disponibilidade |
-| Reverse Proxy | Nginx como ponto único de entrada e load balancer |
-| Docker Secrets | Senha do banco gerenciada de forma segura |
-| Service Discovery | Comunicação por nome de serviço via DNS interno |
-| Build customizado | Cada serviço com seu Dockerfile e imagem nomeada |
