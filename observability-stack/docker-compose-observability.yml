@@ -6,7 +6,7 @@ services:
     configs:
       - source: prometheus_config
         target: /etc/prometheus/prometheus.yml
-    volumes: # Adicione este bloco
+    volumes: 
       - /var/run/docker.sock:/var/run/docker.sock:ro
     
     ports:
