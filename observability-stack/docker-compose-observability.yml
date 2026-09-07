@@ -36,7 +36,7 @@ services:
     privileged: true
     deploy:
       mode: global
-    ports:
+    
   
   grafana:
     image: grafana/grafana:latest

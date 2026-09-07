@@ -1,10 +1,21 @@
+global:
+  scrape_interval: 15s
+  
 scrape_configs:
-  # Make Prometheus scrape itself for metrics.
   - job_name: 'prometheus'
     static_configs:
     - targets: ['localhost:9090']
+  - job_name: 'cadvisor'
+    dns_sd_configs:
+    - names: ['tasks.cadvisor'] 
+      type: A
+      port: 8080
+  - job_name: 'node-exporter'
+    dns_sd_configs:
+    - names: ['tasks.node-exporter']
+      type: A
+      port: 9100  
 
-  # Create a job for Docker daemons.
   - job_name: 'docker'
     dockerswarm_sd_configs:
       - host: unix:///var/run/docker.sock
@@ -15,27 +26,28 @@ scrape_configs:
         replacement: 172.18.0.1:9323
       - source_labels: [__meta_dockerswarm_node_hostname]
         target_label: instance
+
   - job_name: 'dockerswarm'
     dockerswarm_sd_configs:
       - host: unix:///var/run/docker.sock
         role: tasks
 
-    relabel_configs:
-      # Use node host IP with the published port
-      - source_labels: [__meta_dockerswarm_node_address, __meta_dockerswarm_task_port_publish_mode]
-        regex: (.+);host
-        target_label: __address__
-        replacement: $1:8080
-      # Set hostname as instance label
-      - source_labels: [__meta_dockerswarm_node_hostname]
-        target_label: instance
-      - source_labels: [__meta_dockerswarm_task_desired_state]
-        regex: running
-        action: keep
-      - source_labels: [__meta_dockerswarm_service_label_prometheus_job]
-        regex: .+
-        action: keep
-      - source_labels: [__meta_dockerswarm_service_label_prometheus_job]
-        target_label: job
-
-  
+    #relabel_configs:
+      ## Use node host IP with the published port
+      #- source_labels: [__meta_dockerswarm_node_address, __meta_dockerswarm_task_port_publish_mode]
+        #regex: (.+);host
+        #target_label: __address__
+        #replacement: $1:8080
+      ## Set hostname as instance label
+      #- source_labels: [__meta_dockerswarm_node_hostname]
+        #target_label: instance
+      #- source_labels: [__meta_dockerswarm_task_desired_state]
+        #regex: running
+        #action: keep
+      #- source_labels: [__meta_dockerswarm_service_label_prometheus_job]
+        #regex: .+
+        #action: keep
+      #- source_labels: [__meta_dockerswarm_service_label_prometheus_job]
+        #target_label: job
+#
+#  
