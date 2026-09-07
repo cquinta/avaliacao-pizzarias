@@ -214,25 +214,6 @@ A stack de observabilidade é definida em `observability-stack/docker-compose-ob
 
 #### prometheus
 
-```yaml
-prometheus:
-  image: prom/prometheus:latest
-  user: root
-  volumes:
-    - prometheus_data:/prometheus
-    - /var/run/docker.sock:/var/run/docker.sock:ro
-  ports:
-    - "9090:9090"
-  configs:
-    - source: prometheus_config
-      target: /etc/prometheus/prometheus.yml
-  deploy:
-    replicas: 1
-    placement:
-      constraints:
-        - node.role == manager
-```
-
 - Roda exclusivamente no nó manager (acesso ao Docker socket para service discovery)
 - Monta o Docker socket para descobrir nós e serviços via Swarm SD
 - Roda como `root` para ter permissão de acesso ao socket (grupo `docker`)
@@ -240,28 +221,20 @@ prometheus:
 
 #### cadvisor
 
-```yaml
-cadvisor:
-  image: gcr.io/cadvisor/cadvisor:latest
-  volumes:
-    - /var/run/docker.sock:/var/run/docker.sock:ro
-    - /:/rootfs:ro
-    - /var/run:/var/run
-    - /sys:/sys:ro
-    - /var/lib/docker:/var/lib/docker:ro
-  ports:
-    - target: 8080
-      published: 8080
-      mode: host
-  deploy:
-    mode: global
-    labels:
-      prometheus.job: cadvisor
-```
-
 - Roda em modo `global` — uma instância por nó do cluster
 - Porta publicada em modo `host` para que o Prometheus acesse pelo IP do nó
 - Label `prometheus.job: cadvisor` usado pelo Prometheus para filtrar e nomear o job
+
+#### node-exporter
+
+- Roda em modo `global` — uma instância por nó do cluster
+- Coleta métricas do host (CPU, memória, disco, rede)
+
+#### grafana
+
+- Roda no nó manager na porta 3000
+- Datasource do Prometheus configurado automaticamente via provisioning (`grafana-datasource.yml`)
+- Credenciais padrão: `admin` / `admin`
 
 ### 4.2. Configuração do Prometheus (prometheus.yml)
 
@@ -313,12 +286,20 @@ scrape_configs:
 - Filtra apenas tasks com label `prometheus.job` definido
 - Usa o valor do label como nome do job
 
-### 4.3. Deploy
+### 4.3. Grafana
+
+O datasource do Prometheus é provisionado automaticamente via arquivo `grafana-datasource.yml` montado em `/etc/grafana/provisioning/datasources/`. O Grafana carrega esse arquivo na inicialização, sem necessidade de configuração manual.
+
+### 4.4. Deploy
 
 ```bash
 cd observability-stack
 docker stack deploy -c docker-compose-observability.yml obs
 ```
+
+Acesse:
+- Prometheus: `http://<ip-manager>:9090`
+- Grafana: `http://<ip-manager>:3000` (admin/admin)
 
 Para atualizar a configuração do Prometheus:
 
@@ -327,9 +308,42 @@ docker config rm obs_prometheus_config
 docker stack deploy -c docker-compose-observability.yml obs
 ```
 
+## 5. Infraestrutura como Código (Terraform)
+
+O diretório `infra/` contém os manifestos Terraform para provisionar o cluster no AWS.
+
+### 5.1. Recursos provisionados
+
+- **EC2:** 1 manager (`swarm-manager`) e 2 workers (`swarm-worker01`, `swarm-worker02`) no Work VPC
+- **Security Group:** Regras self-referencing para comunicação interna do Swarm e regras públicas para acesso externo
+- **User Data:** Instala o Docker CE e configura o `daemon.json` com métricas expostas na porta 9323
+
+### 5.2. Portas no Security Group
+
+| Porta | Protocolo | Origem | Uso |
+|-------|-----------|--------|-----|
+| 2377  | TCP | self | Gerenciamento do Swarm |
+| 7946  | TCP/UDP | self | Comunicação entre nós |
+| 4789  | UDP | self | Overlay network (VXLAN) |
+| 9323  | TCP | self | Métricas do Docker daemon |
+| 8080  | TCP | self + 0.0.0.0/0 | cAdvisor |
+| 9090  | TCP | self + 0.0.0.0/0 | Prometheus |
+| 80    | TCP | self + 0.0.0.0/0 | Aplicação |
+| 3000  | TCP | 0.0.0.0/0 | Grafana |
+| 22    | TCP | self | SSH |
+
+### 5.3. Comandos
+
+```bash
+cd infra
+terraform init
+terraform plan
+terraform apply
+```
+
 ---
 
-## 5. Fluxo de uma Requisição
+## 6. Fluxo de uma Requisição
 
 ```
 Navegador (porta 80)
@@ -349,7 +363,7 @@ PostgreSQL
 
 ---
 
-## 6. Comandos Úteis
+## 7. Comandos Úteis
 
 ```bash
 # Local
@@ -365,7 +379,15 @@ docker service logs demo_api --tail 50
 docker stack rm demo
 
 # Swarm — observabilidade
-docker stack deploy -c observability-stack/docker-compose-observability.yml obs
+cd observability-stack
+docker stack deploy -c docker-compose-observability.yml obs
 docker service logs obs_prometheus --tail 30
 docker stack rm obs
+
+# Terraform
+cd infra
+terraform init
+terraform plan
+terraform apply
+terraform destroy
 ```

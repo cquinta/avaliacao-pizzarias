@@ -126,7 +126,9 @@ cd observability-stack
 docker stack deploy -c docker-compose-observability.yml obs
 ```
 
-Acesse o Prometheus em `http://<ip-manager>:9090`.
+Acesse:
+- Prometheus: `http://<ip-manager>:9090`
+- Grafana: `http://<ip-manager>:3000` (admin/admin)
 
 ## Estrutura do Projeto
 
@@ -146,10 +148,19 @@ avaliacao-pizzarias/
 │   ├── Dockerfile
 │   ├── app.py                         # Interface Streamlit
 │   └── requirements.txt
+├── infra/
+│   ├── data.tf                        # Data sources (VPC, AMI)
+│   ├── nodes.tf                       # Instâncias EC2 (manager e workers)
+│   ├── provider.tf                    # Configuração do provider AWS
+│   ├── sg.tf                          # Security Groups
+│   ├── variables.tf                   # Variáveis
+│   └── templates/
+│       └── userdata_docker.sh.tpl     # Script de instalação do Docker
 ├── nginx/
 │   ├── Dockerfile
 │   └── nginx.conf                     # Configuração de reverse proxy
 ├── observability-stack/
+│   ├── grafana-datasource.yml         # Provisioning do datasource Prometheus no Grafana
 │   ├── prometheus.yml                 # Configuração do Prometheus com Swarm SD
 │   └── docker-compose-observability.yml
 ├── docker-compose.yml                 # Deploy local
@@ -186,10 +197,12 @@ A stack de observabilidade é composta por:
 |----------------|-------------|:-----:|:--------:|
 | **prometheus** | Prometheus  | 9090  | 1 (manager) |
 | **cadvisor**   | cAdvisor    | 8080  | global (1 por nó) |
+| **node-exporter** | Node Exporter | —  | global (1 por nó) |
+| **grafana**    | Grafana     | 3000  | 1 (manager) |
 
-O Prometheus usa **Docker Swarm Service Discovery** para descobrir automaticamente os nós e serviços do cluster. O cAdvisor coleta métricas de containers em cada nó.
+O Prometheus usa **Docker Swarm Service Discovery** para descobrir automaticamente os nós e serviços do cluster. O cAdvisor coleta métricas de containers e o Node Exporter coleta métricas do host em cada nó. O Grafana já vem configurado com o Prometheus como datasource padrão.
 
-> O Prometheus roda exclusivamente no nó manager e acessa o Docker socket para o service discovery.
+> O Prometheus e o Grafana rodam exclusivamente no nó manager.
 
 ## Tecnologias Utilizadas
 
@@ -203,6 +216,9 @@ O Prometheus usa **Docker Swarm Service Discovery** para descobrir automaticamen
 - **Docker Swarm** — orquestração em cluster
 - **Prometheus** — coleta e armazenamento de métricas
 - **cAdvisor** — métricas de containers
+- **Node Exporter** — métricas de host
+- **Grafana** — visualização de métricas
+- **Terraform** — provisionamento de infraestrutura AWS
 
 ## Segurança
 
