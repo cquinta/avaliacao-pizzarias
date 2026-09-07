@@ -4,8 +4,8 @@ services:
   prometheus:
     image: prom/prometheus:latest
     configs:
-      source: prometheus_config
-      target: /etc/prometheus/prometheus.yml
+      - source: prometheus_config
+        target: /etc/prometheus/prometheus.yml
     
     ports:
       - "9090:9090"
