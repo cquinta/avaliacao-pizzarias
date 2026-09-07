@@ -9,13 +9,11 @@ resource "aws_instance" "manager" {
   ami           = data.aws_ami.ubuntu.id
   instance_type = var.instance_type
   subnet_id     = data.aws_subnets.work.ids[0]
+  user_data     = file("${path.module}/templates/userdata_docker.sh.tpl")
   tags = {
     Name = each.value
   }
   vpc_security_group_ids = [aws_security_group.swarm_sg.id]
-  user_data = templatefile("${path.module}/templates/userdata_docker.sh.tpl", {
-    
-  })
 }
 
 resource "aws_instance" "worker" {
@@ -23,11 +21,9 @@ resource "aws_instance" "worker" {
   ami           = data.aws_ami.ubuntu.id
   instance_type = var.instance_type
   subnet_id     = data.aws_subnets.work.ids[0]
+  user_data     = file("${path.module}/templates/userdata_docker.sh.tpl")
   tags = {
     Name = each.value
   }
-  user_data = templatefile("${path.module}/templates/userdata_docker.sh.tpl", {
-    
-  })
   vpc_security_group_ids = [aws_security_group.swarm_sg.id]
 }
