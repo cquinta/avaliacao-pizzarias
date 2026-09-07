@@ -23,7 +23,8 @@ scrape_configs:
     relabel_configs:
       - source_labels: [__meta_dockerswarm_node_address]
         target_label: __address__
-        replacement: 172.18.0.1:9323
+        #replacement: 172.18.0.1:9323
+        replacement: $1:9323
       - source_labels: [__meta_dockerswarm_node_hostname]
         target_label: instance
 
