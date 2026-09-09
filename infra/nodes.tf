@@ -9,6 +9,7 @@ resource "aws_instance" "manager" {
   ami           = data.aws_ami.ubuntu.id
   instance_type = var.instance_type
   subnet_id     = data.aws_subnets.work.ids[0]
+  key_name      = var.key_name
   user_data     = file("${path.module}/templates/userdata_docker.sh.tpl")
   tags = {
     Name = each.value
@@ -22,6 +23,7 @@ resource "aws_instance" "worker" {
   instance_type = var.instance_type
   subnet_id     = data.aws_subnets.work.ids[0]
   user_data     = file("${path.module}/templates/userdata_docker.sh.tpl")
+  key_name      = var.key_name
   tags = {
     Name = each.value
   }
