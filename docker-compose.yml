@@ -5,8 +5,11 @@ services:
     container_name: avalicoes-db
     environment:
       POSTGRES_PASSWORD_FILE: /run/secrets/db_password
-    ports:
-      - "5432:5432"
+    networks:
+      - datanetwork
+    volumes:
+      - db-data:/var/lib/postgresql/data
+      
     
     secrets:
       - db_password
@@ -26,6 +29,10 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    networks:
+      - datanetwork
+      - dmz
+  
     
     depends_on:
       db:
@@ -42,6 +49,8 @@ services:
     environment:
       API_URL: http://api:8000
       UPDATED: yes
+    networks:
+      - dmz
     
     deploy:
       replicas: 3
@@ -57,8 +66,20 @@ services:
     depends_on:
       - api
       - frontend
+    networks:
+      - dmz
     
 secrets:
   db_password:
     file: ./db/password.txt
+
+networks:
+  datanetwork:
+    driver: bridge
+  dmz:
+    driver: bridge
+
+volumes:
+  db-data:
+
   
