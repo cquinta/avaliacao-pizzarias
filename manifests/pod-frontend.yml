@@ -13,7 +13,3 @@ spec:
       value: "http://api:8000"
     - name: UPDATED
       value: "yes"
-
-
-API_URL: http://api:8000
-      UPDATED: yes
