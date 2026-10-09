@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: dbpod
+spec:
+  containers:
+  - name: db
+    image: carlosquintanilha/dbimage
+    ports:
+    - containerPort: 5432
