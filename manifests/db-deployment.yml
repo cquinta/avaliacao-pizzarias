@@ -1,0 +1,24 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: db-deployment
+  labels:
+    layer: db
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      layer: db
+  template:
+    metadata:
+      labels:
+        layer: db
+    spec:
+      containers:
+      - name: db
+        image: carlosquintanilha/dbimage
+        ports:
+        - containerPort: 5432
+        env:
+        - name: POSTGRES_PASSWORD
+          value: "M@sterkey123"
