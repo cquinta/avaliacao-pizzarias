@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend-deployment
+  labels:
+    layer: frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      layer: frontend
+  template:
+    metadata:
+      labels:
+        layer: frontend
+    spec:
+      containers:
+      - name: frontend
+        image: carlosquintanilha/frontendimage
+        ports:
+        - containerPort: 8501
+        
+        env:
+        - name: API_URL
+          value: "http://api:8000"
+        - name: UPDATED
+          value: "yes"
+
