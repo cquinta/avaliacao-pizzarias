@@ -7,5 +7,6 @@ data:
   db-hostname: "db"
   api-url: "http://api:8000"
   updated: "yes"
+  db-port: "5432"
     
   

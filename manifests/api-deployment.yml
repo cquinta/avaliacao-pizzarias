@@ -29,7 +29,9 @@ spec:
           valueFrom:
             configMapKeyRef:
               name: config-parameters
-              key: db-hostname  
-        
-
-
+              key: db-hostname
+        - name: DB_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: config-parameters
+              key: db-port
