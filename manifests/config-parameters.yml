@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: config-parameters
+data:
+  # property-like keys; each key maps to a simple value
+  db-hostname: "db"
+  api-url: "http://api:8000"
+  updated: "yes"
+    
+  

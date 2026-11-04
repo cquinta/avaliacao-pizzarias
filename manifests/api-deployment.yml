@@ -23,6 +23,10 @@ spec:
         - name: DB_PASSWORD
           value: "M@sterkey123"
         - name: DB_HOST
-          value: "db"
+          valueFrom:
+            configMapKeyRef:
+              name: config-parameters
+              key: db-hostname  
+        
 
 

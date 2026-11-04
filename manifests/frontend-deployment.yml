@@ -22,7 +22,13 @@ spec:
         
         env:
         - name: API_URL
-          value: "http://api:8000"
+          valueFrom:
+            configMapKeyRef:
+              name: config-parameters
+              key: api-url
         - name: UPDATED
-          value: "yes"
+          valueFrom: 
+            configMapKeyRef:
+              name: config-parameters
+              key: updated
 
