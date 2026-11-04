@@ -21,7 +21,10 @@ spec:
         - containerPort: 8000
         env:
         - name: DB_PASSWORD
-          value: "M@sterkey123"
+          valueFrom: 
+            secretKeyRef:
+              name: secret-parameters
+              key: password
         - name: DB_HOST
           valueFrom:
             configMapKeyRef:
