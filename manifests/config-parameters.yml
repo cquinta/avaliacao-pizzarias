@@ -5,8 +5,8 @@ metadata:
 data:
   # property-like keys; each key maps to a simple value
   db-hostname: "db"
+  db-port: "5432"
   api-url: "http://api:8000"
   updated: "yes"
-  db-port: "5432"
     
   
