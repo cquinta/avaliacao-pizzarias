@@ -22,7 +22,7 @@ jobs:
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
         with:
-          username: ${{ variables.DOCKERHUB_INFNET_USERNAME }}
+          username: ${{ vars.DOCKERHUB_INFNET_USERNAME }}
           password: ${{ secrets.DOCKERHUB_INFNET_TOKEN }}
 
       # 3. Extrai o nome da branch e o converte para minúsculas
