@@ -11,6 +11,15 @@ jobs:
   build-and-push:
     # O tipo de máquina virtual para executar o job
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - image_name: apiimage
+            context_path: ./api
+          - image_name: dbimage
+            context_path: ./db
+          - image_name: frontendimage
+            context_path: ./frontend
 
     steps:
       # 1. Faz o checkout do seu repositório no runner
@@ -31,7 +40,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-            images: carlosquintanilha/apiimage
+            images: carlosquintanilha/${{ matrix.image_name }}
             tags: |
                 type=ref,event=branch
       - name: Set up Docker Buildx
