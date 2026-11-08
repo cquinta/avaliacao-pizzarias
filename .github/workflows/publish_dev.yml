@@ -31,7 +31,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-            images: carlosquintanilha/api_image
+            images: carlosquintanilha/apiimage
             tags: |
                 type=ref,event=branch
       - name: Set up Docker Buildx
