@@ -1,3 +1,5 @@
+terraform.tfvars
+.terraform
 .kiro*
 # Byte-compiled / optimized / DLL files
 __pycache__/
