@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
       - name: db
-        image: carlosquintanilha/dbimage
+        image: carlosquintanilha/dbimage:main
         ports:
         - containerPort: 5432
         env:

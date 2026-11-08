@@ -48,3 +48,23 @@ jobs:
           # Opcional: Adiciona cache para acelerar builds futuros
           cache-from: type=registry,ref=carlosquintanilha/apiimage:buildcache
           cache-to: type=registry,ref=carlosquintanilha/apiimage:buildcache,mode=max
+      
+      - name: Build and push frontend
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          # Opcional: Adiciona cache para acelerar builds futuros
+          cache-from: type=registry,ref=carlosquintanilha/frontendimage:buildcache
+          cache-to: type=registry,ref=carlosquintanilha/frontendimabe:buildcache,mode=max
+
+      - name: Build and push db
+        uses: docker/build-push-action@v5
+        with:
+          context: ./db
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          # Opcional: Adiciona cache para acelerar builds futuros
+          cache-from: type=registry,ref=carlosquintanilha/dbimabe:buildcache
+          cache-to: type=registry,ref=carlosquintanilha/dbimabe:buildcache,mode=max

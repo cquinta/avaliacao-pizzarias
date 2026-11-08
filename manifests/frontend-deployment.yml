@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
       - name: frontend
-        image: carlosquintanilha/frontendimage
+        image: carlosquintanilha/frontendimage:main
         ports:
         - containerPort: 8501
         
