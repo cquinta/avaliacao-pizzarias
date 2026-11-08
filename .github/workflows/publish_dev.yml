@@ -25,18 +25,18 @@ jobs:
           username: ${{ vars.DOCKERHUB_INFNET_USERNAME }}
           password: ${{ secrets.DOCKERHUB_INFNET_TOKEN }}
 
-      # 3. Extrai o nome da branch e o converte para minúsculas
+      # 3. Extrai o nome da branch 
       # Isso garante que a tag do Docker seja válida (evita problemas com letras maiúsculas)
-      - name: Extract branch name
-        id: extract_branch
-        run: echo "BRANCH_NAME=$(echo ${GITHUB_REF#refs/heads/} | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
-
-      # 4. Configura o Docker Buildx
-      # Uma ferramenta do Docker para builds mais avançados
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+            images: carlosquintanilha/api_image
+            tags: |
+                type=ref,event=branch
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-        
     # 5. Constrói a imagem Docker e a envia para o Docker Hub
       # A tag da imagem será no formato: cquinta/moc-app:<nome-da-branch>
       - name: Build and push api
@@ -44,7 +44,7 @@ jobs:
         with:
           context: ./api
           push: true
-          tags: carlosquintanilha/api_image:${{ env.BRANCH_NAME }}
+          tags: ${{ steps.meta.outputs.tags }}
           # Opcional: Adiciona cache para acelerar builds futuros
           cache-from: type=registry,ref=carlosquintanilha/apiimage:buildcache
           cache-to: type=registry,ref=carlosquintanilha/apiimage:buildcache,mode=max
