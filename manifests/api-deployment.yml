@@ -35,3 +35,5 @@ spec:
             configMapKeyRef:
               name: config-parameters
               key: db-port
+        - name: VERSION
+          value: "2.0"

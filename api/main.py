@@ -84,8 +84,8 @@ def get_hostname():
 
 @app.get("/version")
 def get_version():
-    """Retorna a versão da API."""
-    return {"version": API_VERSION}
+    version=os.getenv("VERSION", API_VERSION)
+    return {"version": version}
 
 
 @app.get("/health")
