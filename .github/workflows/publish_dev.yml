@@ -46,34 +46,11 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-    # 5. Constrói a imagem Docker e a envia para o Docker Hub
-      # A tag da imagem será no formato: cquinta/moc-app:<nome-da-branch>
-      - name: Build and push api
+      - name: Build and push ${{ matrix.image_name }}
         uses: docker/build-push-action@v5
         with:
-          context: ./api
+          context: ${{ matrix.context_path }}
           push: true
           tags: ${{ steps.meta.outputs.tags }}
-          # Opcional: Adiciona cache para acelerar builds futuros
-          cache-from: type=registry,ref=carlosquintanilha/apiimage:buildcache
-          cache-to: type=registry,ref=carlosquintanilha/apiimage:buildcache,mode=max
-      
-      - name: Build and push frontend
-        uses: docker/build-push-action@v5
-        with:
-          context: ./frontend
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          # Opcional: Adiciona cache para acelerar builds futuros
-          cache-from: type=registry,ref=carlosquintanilha/frontendimage:buildcache
-          cache-to: type=registry,ref=carlosquintanilha/frontendimabe:buildcache,mode=max
-
-      - name: Build and push db
-        uses: docker/build-push-action@v5
-        with:
-          context: ./db
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          # Opcional: Adiciona cache para acelerar builds futuros
-          cache-from: type=registry,ref=carlosquintanilha/dbimabe:buildcache
-          cache-to: type=registry,ref=carlosquintanilha/dbimabe:buildcache,mode=max
+          cache-from: type=registry,ref=carlosquintanilha/${{ matrix.image_name }}:buildcache
+          cache-to: type=registry,ref=carlosquintanilha/${{ matrix.image_name }}:buildcache,mode=max
