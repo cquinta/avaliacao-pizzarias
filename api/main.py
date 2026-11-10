@@ -25,11 +25,6 @@ def get_db_connection():
         password=get_db_password(),
     )
 
-def get_version():
-    """Retorna a versão da API."""
-    version=os.getenv("VERSION", API_VERSION)
-    return {"version": version}
-
 
 # ─── Modelos ───────────────────────────────────────────────────────────────────
 
@@ -84,8 +79,7 @@ def get_hostname():
 
 @app.get("/version")
 def get_version():
-    version=os.getenv("VERSION", API_VERSION)
-    return {"version": version}
+    return {"version": os.getenv("VERSION", API_VERSION)}
 
 
 @app.get("/health")
