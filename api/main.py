@@ -12,10 +12,6 @@ app = FastAPI(title="Avaliação de Pizzarias", version=API_VERSION)
 
 def get_db_password():
     """Lê a senha do banco via secret file ou variável de ambiente."""
-    password_file = os.getenv("DB_PASSWORD_FILE")
-    if password_file:
-        with open(password_file, "r") as f:
-            return f.read().strip()
     return os.getenv("DB_PASSWORD", "postgres")
 
 
