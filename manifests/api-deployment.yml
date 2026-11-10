@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
       - name: api
-        image: carlosquintanilha/apiimage
+        image: carlosquintanilha/apiimage:main
         ports:
         - containerPort: 8000
         env:
