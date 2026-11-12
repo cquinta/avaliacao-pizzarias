@@ -63,3 +63,19 @@ minikube start --driver=docker
 kubectl get nodes
 minikube status
 ```
+
+## Manutenção
+
+### Limpar imagens e cache do Minikube
+
+Para forçar o pull de imagens atualizadas, limpe o cache do Docker dentro do Minikube:
+
+```bash
+minikube ssh -- docker system prune -a --volumes -f
+```
+
+Depois reinicie os deployments para puxar as novas imagens:
+
+```bash
+kubectl rollout restart deployment/<nome-do-deployment>
+```
